@@ -7,10 +7,11 @@ class UserRegistrationSerializer(serializers.Serializer):
     email = serializers.EmailField(max_length=254, validators=[UniqueValidator(queryset=User.objects.all())])
     password = serializers.CharField(max_length=100, write_only=True)
     password2 = serializers.CharField(max_length=100, write_only=True)
+    username = serializers.CharField(max_length=100, validators=[UniqueValidator(queryset=User.objects.all())])
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'password')
+        fields = ('username', 'email', 'password', 'password2')
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
@@ -26,7 +27,8 @@ class UserRegistrationSerializer(serializers.Serializer):
         user.save()
         return user
 
+
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email')
+        fields = ('id', 'username', 'email', 'first_name', 'last_name')

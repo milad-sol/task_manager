@@ -38,6 +38,7 @@ INSTALLED_APPS = [
 
     # My apps
     'users',
+    'project',
     # Third Party apps
     'rest_framework',
     'rest_framework_simplejwt',

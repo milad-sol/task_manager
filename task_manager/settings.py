@@ -43,7 +43,7 @@ INSTALLED_APPS = [
     # Third Party apps
     'rest_framework',
     'rest_framework_simplejwt',
-    'django_filters',
+    'django_filters', 'drf_spectacular',
 ]
 
 MIDDLEWARE = [
@@ -132,9 +132,47 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+
 }
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=100),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+}
+
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Task Manager API',
+    'DESCRIPTION': 'API documentation for Task Manager project',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+
+    # Optional UI customization
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': True,
+    },
+
+    # Optional: Add prefixes to tags based on viewsets/paths
+    'TAG_NAMESPACES': False,
+
+    # Optional: Configure component schemas
+    'COMPONENT_SPLIT_REQUEST': True,
+
+    # Authentication specification
+    'SECURITY': [
+        {
+            'Token': []
+        }
+    ],
+    'SECURITY_DEFINITIONS': {
+        'Token': {
+            'type': 'apiKey',
+            'in': 'header',
+            'name': 'Authorization',
+            'description': 'Token-based authentication. Format: "Token your_token_here"'
+        }
+    },
 }

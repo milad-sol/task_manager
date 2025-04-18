@@ -48,7 +48,7 @@ The project consists of three main Django apps:
 ### Installation
 1. Clone the repository:
 ``` bash
-git clone https://github.com/yourusername/task-manager.git
+git clone https://github.com/milad-sol/task-manager.git
 cd task-manager
 ```
 1. Create and activate a virtual environment:
@@ -116,13 +116,17 @@ python manage.py test task
 ```
 ## 👨‍💻 Development
 ### Setting Up Development Environment
-For local development, it's recommended to use SQLite:
+For local development, it's recommended to use Postgresql:
 ``` python
 # settings.py
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'task',
+        'USER': 'postgres',
+        'PASSWORD': 'postgres',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 ```

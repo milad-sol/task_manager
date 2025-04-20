@@ -1,4 +1,4 @@
-from rest_framework.generics import ListCreateAPIView, CreateAPIView, RetrieveUpdateDestroyAPIView, UpdateAPIView
+from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView, UpdateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from . import models
@@ -8,6 +8,7 @@ from django.db.models import Q
 from .serializers import ProjectSerializer
 from rest_framework import status
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 
 @extend_schema_view(
@@ -29,17 +30,18 @@ from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiPara
         auth=["Token"],
     )
 )
-class ProjectCreateView(CreateAPIView):
+class ProjectCreateView(ListCreateAPIView):
     """
     Creates a new project for the authenticated user.
 
     The authenticated user is automatically set as the project owner.
     """
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [JWTAuthentication]
     permission_classes = (IsAuthenticated,)
     serializer_class = ProjectSerializer
 
     def get_queryset(self):
+        user = self.request.user
         """
         Returns projects accessible to the current user.
 
@@ -48,8 +50,9 @@ class ProjectCreateView(CreateAPIView):
         Returns:
             QuerySet: Filtered project queryset
         """
-        projects = Project.objects.filter(Q(owner=self.request.user) | Q(members=self.request.user))
-        return projects
+        if user.is_superuser:
+            return Project.objects.all()
+        return Project.objects.filter(Q(owner=self.request.user) | Q(members=self.request.user))
 
     def perform_create(self, serializer):
         """
@@ -107,11 +110,12 @@ class ProjectDetailView(RetrieveUpdateDestroyAPIView):
     Access is restricted to users who either own the project or are members.
     Update and delete operations are further restricted to the project owner only.
     """
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [JWTAuthentication]
     serializer_class = ProjectSerializer
     permission_classes = (IsAuthenticated,)
 
     def get_queryset(self):
+
         """
         Returns projects accessible to the current user.
 
@@ -120,10 +124,14 @@ class ProjectDetailView(RetrieveUpdateDestroyAPIView):
         Returns:
             QuerySet: Filtered project queryset
         """
+        user = self.request.user
+        if user.is_superuser:
+            return Project.objects.all()
         projects = Project.objects.filter(Q(owner=self.request.user) | Q(members=self.request.user))
         return projects
 
     def perform_update(self, serializer):
+        user = self.request.user
         """
         Updates a project after verifying owner permissions.
 
@@ -137,12 +145,14 @@ class ProjectDetailView(RetrieveUpdateDestroyAPIView):
             Response: 403 Forbidden response if permission check fails
         """
         project = self.get_object()
-        if project.owner != self.request.user:
-            return Response({'detail': 'You do not have permission to perform this action.'},
-                            status=status.HTTP_403_FORBIDDEN)
+        if not user.is_superuser:
+            if project.owner != user:
+                return Response({'detail': 'You do not have permission to perform this action.'},
+                                status=status.HTTP_403_FORBIDDEN)
         serializer.save()
 
     def perform_destroy(self, instance):
+        user =self.request.user
         """
         Deletes a project after verifying owner permissions.
 
@@ -155,10 +165,15 @@ class ProjectDetailView(RetrieveUpdateDestroyAPIView):
         Returns:
             Response: 403 Forbidden response if permission check fails
         """
-        if instance.owner != self.request.user:
-            return Response({'detail': 'You do not have permission to perform this action.'},
-                            status=status.HTTP_403_FORBIDDEN)
+        if  not user.is_superuser:
+            if instance.owner != user:
+                return Response({'detail': 'You do not have permission to perform this action.'},
+                                status=status.HTTP_403_FORBIDDEN)
         instance.delete()
+        return Response(
+            {"message": "Project deleted successfully"},
+            status=status.HTTP_204_NO_CONTENT
+        )
 
 
 @extend_schema(

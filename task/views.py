@@ -1,9 +1,10 @@
 from django.contrib.auth.models import User
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.authentication import TokenAuthentication
 from rest_framework.response import Response
 from django.db.models import Q
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
 from .models import Task
 from .serializers import TaskSerializer
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample
@@ -76,7 +77,7 @@ class TaskListCreateView(generics.ListCreateAPIView):
     GET: Returns a list of tasks that the user has access to through their projects.
     POST: Creates a new task in a project that the user has access to.
     """
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [JWTAuthentication]
     permission_classes = (IsAuthenticated,)
     serializer_class = TaskSerializer
 
@@ -94,6 +95,8 @@ class TaskListCreateView(generics.ListCreateAPIView):
             QuerySet: Filtered task queryset
         """
         user = self.request.user
+        if user.is_superuser:
+            return Task.objects.all()
         queryset = Task.objects.filter(
             Q(project__owner=user) | Q(project__members=user) | Q(assigned_to=user)
         ).distinct()
@@ -130,11 +133,12 @@ class TaskListCreateView(generics.ListCreateAPIView):
         user = self.request.user
 
         # Check if user has access to the project
-        if not (project.owner == user or project.members.filter(id=user.id).exists()):
-            return Response(
-                {'detail': 'You do not have permission to create tasks in this project.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        if not user.is_superuser:
+            if not (project.owner == user or project.members.filter(id=user.id).exists()):
+                return Response(
+                    {'detail': 'You do not have permission to create tasks in this project.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
         serializer.save(created_by=user)
 
@@ -191,7 +195,7 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
     Access is restricted to users who have permission to access the related project.
     Edit/delete operations are further restricted based on user role.
     """
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [JWTAuthentication]
     permission_classes = (IsAuthenticated,)
     serializer_class = TaskSerializer
 
@@ -206,6 +210,8 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
             QuerySet: Filtered task queryset
         """
         user = self.request.user
+        if user.is_superuser:
+            return Task.objects.all()
         return Task.objects.filter(
             Q(project__owner=user) | Q(project__members=user) | Q(assigned_to=user)
         ).distinct()
@@ -230,18 +236,16 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
 
         # Project owner can do anything
         if task.project.owner == user:
-            serializer.save()
-            return
+            return serializer.save()
 
         # Task creator can update the task
         if task.created_by == user:
-            serializer.save()
-            return
+            return serializer.save()
 
         # Task assignee can update status only
         if task.assigned_to == user and len(serializer.validated_data) == 1 and 'status' in serializer.validated_data:
             serializer.save()
-            return
+            return Response({'detail': 'Task status updated successfully.'}, status=status.HTTP_200_OK)
 
         return Response(
             {'detail': 'You do not have permission to perform this action.'},
@@ -249,24 +253,15 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         )
 
     def perform_destroy(self, instance):
-        """
-        Deletes a task after verifying permissions.
-
-        Only the project owner or the task creator can delete a task.
-
-        Args:
-            instance: The task instance to delete
-
-        Returns:
-            Response: 403 Forbidden response if permission check fails
-        """
-        user = self.request.user
-
-        if instance.project.owner == user or instance.created_by == user:
+        if self.request.user == instance.project.owner:
             instance.delete()
+            return Response(
+                {"message": "Project deleted successfully"},
+                status=status.HTTP_204_NO_CONTENT
+            )
         else:
             return Response(
-                {'detail': 'You do not have permission to perform this action.'},
+                {"message": "You do not have permission to delete this task."},
                 status=status.HTTP_403_FORBIDDEN
             )
 
@@ -302,7 +297,7 @@ class TaskAssignView(generics.UpdateAPIView):
     - Assign the task to a project member
     - Unassign the task (set assigned_to to null)
     """
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [JWTAuthentication]
     permission_classes = (IsAuthenticated,)
     serializer_class = TaskSerializer
 
